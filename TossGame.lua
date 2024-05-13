@@ -63,7 +63,9 @@ local function checkRankExpire()
     local curentTag = getGameTimeTag()
     if gameTimeTag ~= curentTag then
         for i = 1, 10 do
-            ao.send({ Target = ao.id, Action = "Transfer", Recipient = rankList[i].pid, Quantity = tostring(100-(i-1)*10)})
+            if rankList[i].pid then
+                ao.send({ Target = ao.id, Action = "Transfer", Recipient = rankList[i].pid, Quantity = tostring(100-(i-1)*10)})
+            end
         end
         rankList = {}
         gameTimeTag = curentTag
