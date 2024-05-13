@@ -1,9 +1,9 @@
-local successText = 'Success'
-local failedText = "failed"
-local rankList = {}
-local timesList = {}
-local members = {}
-local gameTimeTag = ""
+successText = 'Success'
+failedText = "Failed"
+rankList = rankList or {}
+timesList = timesList or {}
+members =members or {}
+gameTimeTag =gameTimeTag or ""
 
 local function guid()
     local seed = { 'e', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f' }
@@ -23,7 +23,7 @@ end
 
 local function getCoinNumber() -- 函数定义注释用于性能，可用于调试
     local coinNumber = 0
-    while (coinNumber == 0 or coinNumber == 0.5)
+    while (coinNumber == 0 or coinNumber == 0.7)
     do
         coinNumber = math.random()
     end
@@ -32,7 +32,7 @@ end
 
 local function getCoinText()
     local num = getCoinNumber()
-    if num < 0.5 then
+    if num < 0.7 then
         return successText
     else
         return failedText
@@ -44,7 +44,7 @@ function printPersonNumber(id)
 end
 
 local function joinStatistic(id)
-    table.insert(members, id)
+    members[id]=true
 end
 
 local function getPersonCoin(id)
@@ -52,7 +52,7 @@ local function getPersonCoin(id)
 end
 local function sortRankList()
     table.sort(rankList, function(a, b)
-        return a.times < b.times
+        return a.times > b.times
     end)
 end
 local function getGameTimeTag()
@@ -62,6 +62,9 @@ end
 local function checkRankExpire()
     local curentTag = getGameTimeTag()
     if gameTimeTag ~= curentTag then
+        for i = 1, 10 do
+            ao.send({ Target = ao.id, Action = "Transfer", Recipient = rankList[i].pid, Quantity = tostring(100-(i-1)*10)})
+        end
         rankList = {}
         gameTimeTag = curentTag
     end
@@ -72,6 +75,15 @@ Handlers.add(
     "HandlerGetCoinRank",
     Handlers.utils.hasMatchingTag("Action", "GetCoinRank"),
     function(Msg)
+        if #rankList==0 then
+            ao.send({
+                Target = Msg.From,
+                Action = "RankList",
+                Data = "rankList : No Any Person"
+            })
+            return
+        end
+
         checkRankExpire()
         local page = tonumber(Msg.Data)
         if (page == nil) then
@@ -85,13 +97,13 @@ Handlers.add(
         local maxPos = math.min(endPos, #rankList)
         local retText = ''
         for i = startPos, maxPos do
-            retText = retText .. 'Rank ' .. i .. " :    " .. rankList[i].name
+            retText = retText .. 'Rank ' .. i .. " :    " .. rankList[i].name .."    "..rankList[i].times
             if startPos ~= maxPos then
                 retText = retText .. '\n'
             end
         end
         ao.send({
-            Target = Msg.id,
+            Target = Msg.From,
             Action = "RankList",
             Data = retText
         })
@@ -104,11 +116,12 @@ Handlers.add(
     "HandlerGetCoin",
     Handlers.utils.hasMatchingTag("Action", "GetCoin"),
     function(Msg)
-        local text = getPersonCoin(Msg.id)
+        local text = getPersonCoin(Msg.From)
+        print(text.."Coin")
         ao.send({
-            Target = Msg.id,
+            Target = Msg.From,
             Action = "CurrentCoin",
-            Data = text
+            Data = text..""
         })
     end
 )
@@ -121,12 +134,13 @@ Handlers.add(
         checkRankExpire()
         local uuid = guid()
         table.insert(rankList, {
-            times = timesList[Msg.id],
+            times = timesList[Msg.From],
             name = Msg.Data,
-            uuid = uuid
+            uuid = uuid,
+            pid = Msg.From
         })
         sortRankList()
-        timesList[Msg.id] = 0
+        timesList[Msg.From] = 0
         local current = "Unkonw"
         for index, obj in pairs(rankList) do
             if obj.uuid == uuid then
@@ -137,9 +151,9 @@ Handlers.add(
 
 
         ao.send({
-            Target = Msg.id,
+            Target = Msg.From,
             Action = "FinishCoinResult",
-            Data = "Hey ! This Toss Coin Game You Rank is"
+            Data = "Hey ! This Toss Coin Game You Rank is "
                 ..
                 current
         })
@@ -155,13 +169,13 @@ Handlers.add(
     function(Msg)
         local text = getCoinText()
         if (text == successText) then
-            timesList[Msg.id] = getPersonCoin(Msg.id) + 1
+            timesList[Msg.From] = getPersonCoin(Msg.From) + 1
         else
-            timesList[Msg.id] = 0
+            timesList[Msg.From] = 0
         end
-        joinStatistic(Msg.id)
+        joinStatistic(Msg.From)
         ao.send({
-            Target = Msg.id,
+            Target = Msg.From,
             Action = "TossCoinResult",
             Data = text
         })
